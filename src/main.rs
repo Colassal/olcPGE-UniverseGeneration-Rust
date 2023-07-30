@@ -1,24 +1,40 @@
 extern crate olc_pixel_game_engine;
 
 use crate::olc_pixel_game_engine as olc;
-use std::time::{SystemTime, UNIX_EPOCH};
-use chrono::Duration as ChronoDuration;
-//use rand::prelude::*;
-//use rand_chacha::ChaCha8Rng;
+//use std::time::{SystemTime, UNIX_EPOCH};
+//use chrono::Duration as ChronoDuration;
 
-//fn lehmer_32(nlehmer: u32) -> u32 {
-//  let mut new_lehmer = nlehmer;
-//  new_lehmer += 0xe120fc15;
-//  let mut tmp: u64;
-//  tmp = new_lehmer as u64 * 0x4a39b70d;
-//  let mut m1: u32 = ((tmp >> 32) ^ tmp) as u32;
-//  tmp = m1 as u64 * 0x12fad5c9;
-//  let mut m2: u32 = ((tmp >> 32) & tmp) as u32;
-//  return m2;
-//}
+const G_STAR_COLOURS: [u32; 8] = [
+  0xFFFFFFFF, 0xFFD9FFFF, 0xFFA3FFFF, 0xFFFFC8C8,
+  0xFFFFCB9D, 0xFF9F9FFF, 0xFF415EFF, 0xFF28199D
+];
+
+struct StarSystem{
+  x: u32,
+  y: u32,
+  n_lehmer: u32,
+  star_exists: bool,
+  star_diameter: f64,
+  star_color: olc::Pixel,
+}
+
+impl StarSystem{
+  fn new(x: u32, y: u32) -> Self{
+    Self{
+      x: x,
+      y: y,
+      n_lehmer: (x & 0xFFFF) << 16 | (y & 0xFFFF),
+      star_exists: false,
+      star_diameter: 0.0,
+      star_color: olc::WHITE,
+    }
+  }
+}
 
 trait Lehmer32 {
   fn lehmer_32(&mut self) -> u32;
+  fn rnd_int(&mut self, max: i32, min: i32) -> i32;
+  fn rnd_double(&mut self, max: f64, min: f64) -> f64;
 }
 
 struct ExampleProgram {
@@ -36,6 +52,30 @@ impl Lehmer32 for ExampleProgram {
       let mut m2: u32 = ((tmp >> 32) & tmp) as u32;
       return m2;
     }
+    fn rnd_int(&mut self, max: i32, min: i32) -> i32 {
+     return (self.lehmer_32() as i32 % (max - min)) + min;   
+    }
+    fn rnd_double(&mut self, max: f64, min: f64) -> f64 {
+        return (self.lehmer_32() as f64 / (0x7FFFFFFF as f64)) * (max - min) + min;
+    }
+}
+
+impl Lehmer32 for StarSystem {
+  fn lehmer_32(&mut self) -> u32 {
+    self.n_lehmer += 0xe120fc15;
+    let mut tmp: u64;
+    tmp = self.n_lehmer as u64 * 0x4a39b70d;
+    let mut m1: u32 = ((tmp >> 32) ^ tmp) as u32;
+    tmp = m1 as u64 * 0x12fad5c9;
+    let mut m2: u32 = ((tmp >> 32) & tmp) as u32;
+    return m2;
+  }
+  fn rnd_int(&mut self, max: i32, min: i32) -> i32 {
+      return (self.lehmer_32() as i32 % (max - min)) + min;
+  }
+  fn rnd_double(&mut self, max: f64, min: f64) -> f64 {
+      return (self.lehmer_32() as f64 / (0x7FFFFFFF as f64)) * (max - min) + min;
+  }
 }
 
 impl olc::Application for ExampleProgram {
@@ -45,57 +85,14 @@ impl olc::Application for ExampleProgram {
 
   fn on_user_update(&mut self, _elapsed_time: f32) -> Result<(), olc::Error> {      // Mirrors `olcPixelGameEngine::onUserUpdate`. Your code goes here.
 
-    //olc::clear(olc::BLACK); // Clears the screen and sets the blanking color to black
-    //olc::draw_string(40, 40, "Hello, World!", olc::WHITE)?; // Prints the string starting at the position (40, 40) and using white colour.
-
-    if olc::get_key(olc::Key::SPACE).released {
-        olc::clear(olc::BLACK);  
-
-        let tp1 = SystemTime::now();
-
-        for x in 0..olc::screen_width(){
-            for y in 0..olc::screen_height(){
-                let mut b_is_star: bool = false;
-                let n_seed: u32 = (y << 16) as u32 | x as u32;
-                /*
-                olc::c_srand(n_seed);
-                b_is_star = olc::c_rand() % 256 < 128;
-                */
-
-                //let mut rng = ChaCha8Rng::seed_from_u64(n_seed.into());
-                //b_is_star = rng.gen_range(0..256) < 32;
-                
-                self.n_lehmer = n_seed;
-                b_is_star = self.lehmer_32() % 256 < 32;
-
-
-                olc::draw(x, y, if b_is_star {olc::WHITE} else {olc::BLACK});
-            }
-        }
-
-
-        let tp2 = SystemTime::now();
-        let std_tp1 = tp1.duration_since(UNIX_EPOCH).unwrap();
-        let std_tp2 = tp2.duration_since(UNIX_EPOCH).unwrap();
-
-        let chrono_tp1 = ChronoDuration::from_std(std_tp1).unwrap();
-        let chrono_tp2 = ChronoDuration::from_std(std_tp2).unwrap();
-
-        let elapsed_time = chrono_tp2 - chrono_tp1;
-        olc::fill_rect(0, 0, olc::screen_width(), 18, olc::Pixel { r: 0, g: 0, b: 100, a: 255 });
-        olc::draw_string(5, 5, &format!("{:?}", elapsed_time), olc::RED)?;
-        
-    }
-
+    // let test_star_system: StarSystem = StarSystem::new(0, 0); // This is just a test to make sure we can create a star system inside the loop
     if olc::get_key(olc::Key::H).pressed{
         if self.debug_bool{
             self.debug_bool = false;
         } else {
             self.debug_bool = true;
         }
-    }
-
-    
+    }   
 
     Ok(())
   }
